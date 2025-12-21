@@ -164,13 +164,7 @@ document.getElementById("submit").onclick = async () => {
   credentials: "omit"
 }).then(r => r.blob());
 
-    const file = new File(
-      [blob],
-      'puzzle.png',
-      { type: 'image/png' }
-    );
-
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    if (navigator.canShare && navigator.canShare()) {
       await navigator.share({
         title: 'パズる絵を投稿',
         text: 'パズる絵でジグソーパズルを投稿しました！\nプレイしてね！\n' + json.shareUrl,

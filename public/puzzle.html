@@ -667,19 +667,11 @@ function checkComplete() {
     document.getElementById("share").style.display = "block";
   
     document.getElementById("share-native").onclick = async () => {
-      const blob = await fetch(json.previewUrl).then(r => r.blob());
 
-      const file = new File(
-        [blob],
-        'puzzle.png',
-        { type: 'image/png' }
-      );
-
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      if (navigator.canShare && navigator.canShare()) {
         await navigator.share({
           title: 'パズる絵を共有',
           text: 'パズる絵でジグソーパズルを共有しました\n' + json.shareUrl,
-          files: [file],
         });
       }
     };
