@@ -668,7 +668,7 @@ function checkComplete() {
   
     document.getElementById("share-native").onclick = async () => {
 
-      if (navigator.canShare && navigator.canShare()) {
+      if (navigator.canShare) {
         await navigator.share({
           title: 'パズる絵を共有',
           text: 'パズる絵でジグソーパズルを共有しました\n' + json.shareUrl,
