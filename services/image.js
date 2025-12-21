@@ -21,7 +21,7 @@ export async function saveImage(file, puzzleId, rows, cols) {
     const _outputPath = `images/${puzzleId}.jpg`
     const _ogpPath = `ogp/${puzzleId}.jpg`
     // sharpでリサイズ＆JPEG化
-    const imageBuffer = await sharp(file.buffer)
+    const imageBuffer = await sharp(file.buffer).withMetadata({ orientation: 1 })
     .resize({ width: 1600, height: 1600, fit: "inside" })
     .jpeg({ quality: 85 })
     .toBuffer();
