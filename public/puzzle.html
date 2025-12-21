@@ -147,6 +147,12 @@ if (img.width >= img.height) {
     const scale = maxWidth / img.width;
     canvas.width = maxWidth;
     canvas.height = img.height * scale;
+  }else{
+      if(img.height > maxHeight){
+    const scale = maxHeight /img.height;
+    canvas.width = img.width * scale;
+    canvas.height = maxHeight;
+  }
   }
 }else{
   if(img.height > maxHeight){
