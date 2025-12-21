@@ -159,7 +159,10 @@ document.getElementById("submit").onclick = async () => {
   document.getElementById("share").style.display = "block";
   
   document.getElementById("share-native").onclick = async () => {
-    const blob = await fetch(json.previewUrl).then(r => r.blob());
+    const blob = await fetch(json.previewUrl, {
+  mode: "cors",
+  credentials: "omit"
+}).then(r => r.blob());
 
     const file = new File(
       [blob],
