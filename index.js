@@ -11,7 +11,7 @@ const uploadLimiter = rateLimit({
 });
 
 const app = express();
-
+app.set("trust proxy", 1);
 // API
 app.use("/api/puzzles", uploadLimiter);
 app.use("/api/puzzles", puzzlesRouter);
