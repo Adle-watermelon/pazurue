@@ -138,11 +138,9 @@ img.onload = () => {
 function setup() {
   canvas.width = img.width;
   canvas.height = img.height;
-  // 80vwのピクセル値を計算
 const maxWidth = window.innerWidth * 0.95;
 const maxHeight = window.innerHeight * 0.65;
-// 画像が80vwより大きい場合はリサイズ
-if (img.width >= img.height) {
+if (window.innerWidth >= window.innerHeight) {
   if(img.width > maxWidth){
     const scale = maxWidth / img.width;
     canvas.width = maxWidth;
