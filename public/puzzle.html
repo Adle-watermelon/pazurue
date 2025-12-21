@@ -140,28 +140,24 @@ function setup() {
   canvas.height = img.height;
 const maxWidth = window.innerWidth * 0.95;
 const maxHeight = window.innerHeight * 0.65;
-if (window.innerWidth >= window.innerHeight) {
   if(img.width > maxWidth){
     const scale = maxWidth / img.width;
     canvas.width = maxWidth;
     canvas.height = img.height * scale;
-  }else{
-      if(img.height > maxHeight){
-    const scale = maxHeight /img.height;
-    canvas.width = img.width * scale;
+    if(canvas.height > maxHeight){
+    const scale = maxHeight /canvas.height;
+    canvas.width = canvas.width * scale;
     canvas.height = maxHeight;
-  }
   }
 }else{
   if(img.height > maxHeight){
     const scale = maxHeight /img.height;
     canvas.width = img.width * scale;
     canvas.height = maxHeight;
-  }else{
-    if(img.width > maxWidth){
-    const scale = maxWidth / img.width;
+      if(canvas.width > maxWidth){
+    const scale = maxWidth / canvas.width;
     canvas.width = maxWidth;
-    canvas.height = img.height * scale;
+    canvas.height = canvas.height * scale;
     }
   }
 }
