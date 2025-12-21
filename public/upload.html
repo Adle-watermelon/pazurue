@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/public/style.css" />
+  <title>パズる絵 | 投稿</title>
+</head>
+<body>
+
+<h1>パズる絵を投稿する</h1>
+
+<div class="input-group">
+  <input type="file" id="imageInput" accept="image/jpeg,image/png" />
+</div>
+
+<div class="number-inputs">
+  <div class="input-item">
+    <label for="rows">縦:</label>
+    <input type="number" id="rows" value="5" min="1" max="20" />
+  </div>
+  <div class="input-item">
+    <label for="cols">横:</label>
+    <input type="number" id="cols" value="5" min="1" max="20" />
+  </div>
+</div>
+
+<div class="canvas-wrapper">
+  <canvas id="preview"></canvas>
+</div>
+
+<div>
+  <button id="submit">投稿</button>
+  <div id="loading" style="display:none; text-align:center; margin-top:10px;">
+    <div class="spinner"></div>
+    <p>投稿中...</p>
+  </div>
+</div>
+
+<div id="result"></div>
+
+<div id="share" style="display:none;">
+  <button id="share-native">共有する</button>
+</div>
+
+<script>
+const imageInput = document.getElementById("imageInput");
+const canvas = document.getElementById("preview");
+const ctx = canvas.getContext("2d");
+const shareText = (url) =>
+  `パズる絵を投稿しました！\nパズルを解いて絵を見てね！\n${url}`;
+let img = null;
+
+imageInput.onchange = e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  img = new Image();
+  img.src = URL.createObjectURL(file);
+  img.onload = drawPreview;
+};
+
+function drawPreview() {
+  if (!img) return;
+  const rows = +document.getElementById("rows").value;
+  const cols = +document.getElementById("cols").value;
+
+  // サイズ上限を設定（ビューポートの70%）
+  const maxWidth = window.innerWidth * 0.7;
+  const maxHeight = window.innerHeight * 0.5;
+
+  let drawWidth = img.width;
+  let drawHeight = img.height;
+
+  // 画像がサイズ上限を超える場合、アスペクト比を維持してリサイズ
+  if (drawWidth > maxWidth || drawHeight > maxHeight) {
+    const widthRatio = maxWidth / drawWidth;
+    const heightRatio = maxHeight / drawHeight;
+    const ratio = Math.min(widthRatio, heightRatio);
+
+    drawWidth = drawWidth * ratio;
+    drawHeight = drawHeight * ratio;
+  }
+
+  canvas.width = drawWidth;
+  canvas.height = drawHeight;
+  ctx.drawImage(img, 0, 0, drawWidth, drawHeight);
+
+  ctx.strokeStyle = "rgba(0,0,0,0.5)";
+  for (let r = 1; r < rows; r++) {
+    ctx.beginPath();
+    ctx.moveTo(0, r * canvas.height / rows);
+    ctx.lineTo(canvas.width, r * canvas.height / rows);
+    ctx.stroke();
+  }
+  for (let c = 1; c < cols; c++) {
+    ctx.beginPath();
+    ctx.moveTo(c * canvas.width / cols, 0);
+    ctx.lineTo(c * canvas.width / cols, canvas.height);
+    ctx.stroke();
+  }
+}
+
+document.getElementById("rows").oninput = drawPreview;
+document.getElementById("cols").oninput = drawPreview;
+
+document.getElementById("submit").onclick = async () => {
+  const file = imageInput.files[0];
+  if (!file) return alert("画像を選んでください");
+
+  // ローディング表示
+  document.getElementById("submit").style.display = "none";
+  document.getElementById("loading").style.display = "block";
+
+  const fd = new FormData();
+  fd.append("image", file);
+  fd.append("rows", document.getElementById("rows").value);
+  fd.append("cols", document.getElementById("cols").value);
+
+  let res;
+  let json;
+
+  try {
+    res = await fetch("/api/puzzles", {
+      method: "POST",
+      body: fd
+    });
+  } catch (e) {
+    document.getElementById("loading").style.display = "none";
+    document.getElementById("submit").style.display = "block";
+    alert("サーバーに接続できませんでした");
+    return;
+  }
+
+  // JSONパース（エラーでも来る可能性がある）
+  try {
+    json = await res.json();
+  } catch (e) {
+    document.getElementById("loading").style.display = "none";
+    document.getElementById("submit").style.display = "block";
+    alert("サーバーから不正なレスポンスが返されました");
+    return;
+  }
+
+  // ❌ HTTPエラー時
+  if (!res.ok) {
+    document.getElementById("loading").style.display = "none";
+    document.getElementById("submit").style.display = "block";
+    // サーバ側で { error: "..." } を返している前提
+    alert(json.error || "エラーが発生しました");
+    return;
+  }
+
+  // ✅ 成功時
+  document.getElementById("loading").style.display = "none";
+  document.getElementById("result").innerHTML = `
+    <p>投稿完了！</p>
+    <a href="${json.shareUrl}" target="_blank">${json.shareUrl}</a>
+  `;
+  document.getElementById("share").style.display = "block";
+  
+  document.getElementById("share-native").onclick = async () => {
+    const blob = await fetch(json.previewUrl).then(r => r.blob());
+
+    const file = new File(
+      [blob],
+      'puzzle.png',
+      { type: 'image/png' }
+    );
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        title: 'パズる絵を投稿',
+        text: 'パズる絵でジグソーパズルを投稿しました！\nプレイしてね！\n' + json.shareUrl,
+        files: [file],
+      });
+    }
+  };
+};
+</script>
+
+</body>
+</html>

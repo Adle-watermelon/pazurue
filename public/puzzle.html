@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>パズる絵</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/public/style.css" />
+  <!-- OGP -->
+  <meta property="og:title" content="パズる絵" />
+  <meta property="og:description" content="パズルを解いて絵を見てね！" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="__pageUrl__" />
+  <meta property="og:image" content="__imageUrl__" />
+
+  <!-- X(Twitter) -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="パズる絵" />
+  <meta name="twitter:description" content="パズルを解いて絵を見てね！" />
+  <meta name="twitter:image" content="__imageUrl__" />
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      background: #f5f5f5;
+    }
+    #info {
+      padding: 0px;
+      background: #fff;
+    }
+    canvas {
+      touch-action: none;
+      display: block;
+      margin: 0 auto;
+      background: #ddd;
+    }
+  </style>
+    <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      background: #f5f5f5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    #info {
+      padding: 10px;
+      background: #fff;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-sizing: border-box;
+    }
+    #newButton {
+      margin-top:5px;
+      padding: 8px 16px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+    }
+    #newButton:hover {
+      background: #45a049;
+    }
+    #canvaswrapper {
+      width: 90vw;
+      height: 70vh;
+      background: white;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 20px auto;
+    }
+    canvas {
+      touch-action: none;
+      display: block;
+      background: #ddd;
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      -webkit-touch-callout: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="info">
+  <button id="newButton" onclick="location.href='/'">新規作成</button>
+  <H1 style="margin:0;">パズる絵</H1>
+  <div style="width: 80px;"></div>
+</div>
+
+<div id="canvaswrapper">
+  <canvas id="canvas"></canvas>
+</div>
+<div id="share" style="display:none;">
+  <button id="share-native">共有する</button>
+</div>
+<script>
+const imageUrl = "__puzzle.image_url__";
+const ROWS = __puzzle.rows__;
+const COLS = __puzzle.cols__;
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const img = new Image();
+img.src = imageUrl;
+let allDraggingPieces = [];
+let pieces = [];
+let draggingPiece = null;
+let dragIndex = null;
+let dropIndex = null;
+let dragOffset = { x: 0, y: 0 };
+let mousePos = { x: 0, y: 0 };
+
+// アニメーション用
+let isAnimating = false;
+let animationProgress = 0;
+const animationDuration = 300; // ミリ秒
+let animationStartTime = 0;
+let animatingPieces = []; // {piece, fromIndex, toIndex}
+
+let cellW, cellH;
+
+img.onload = () => {
+  setup();
+  draw();
+};
+
+function setup() {
+  canvas.width = img.width;
+  canvas.height = img.height;
+  // 80vwのピクセル値を計算
+const maxWidth = document.body.clientWidth * 0.8;
+const maxHeight = document.body.clientHeight * 0.65;
+// 画像が80vwより大きい場合はリサイズ
+if (img.width >= img.height) {
+  if(img.width > maxWidth){
+    const scale = maxWidth / img.width;
+    canvas.width = maxWidth;
+    canvas.height = img.height * scale;
+  }
+}else{
+  if(img.height > maxHeight){
+    const scale = maxHeight /img.height;
+    canvas.width = img.width * scale;
+    canvas.height = maxHeight;
+  }
+}
+  cellW = canvas.width / COLS;
+  cellH = canvas.height / ROWS;
+
+  pieces = [];
+
+  for (let i = 0; i < ROWS * COLS; i++) {
+    const row = Math.floor(i / COLS);
+    const col = i % COLS;
+
+    pieces.push({
+      id: i,
+      correctIndex: i,
+      currentIndex: i,
+      sx: col * (img.width / COLS),
+      sy: row * (img.height / ROWS),
+      sw: img.width / COLS,
+      sh: img.height / ROWS,
+      left: false,
+      right: false,
+      up: false,
+      down: false
+    });
+  }
+
+  shuffle(pieces);
+
+  pieces.forEach((p, i) => {
+    p.currentIndex = i;
+  });
+
+  updateConnections();
+}
+
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
+
+// ピース間の結合状態を更新
+function updateConnections() {
+  for (const piece of pieces) {
+    piece.left = false;
+    piece.right = false;
+    piece.up = false;
+    piece.down = false;
+
+    const row = Math.floor(piece.currentIndex / COLS);
+    const col = piece.currentIndex % COLS;
+    const correctRow = Math.floor(piece.correctIndex / COLS);
+    const correctCol = piece.correctIndex % COLS;
+
+    // 左のピースをチェック
+    if (col > 0 && correctCol > 0) {
+      const leftPiece = pieces.find(p => p.currentIndex === piece.currentIndex - 1);
+      if (leftPiece && leftPiece.correctIndex === piece.correctIndex - 1) {
+        piece.left = true;
+      }
+    }
+
+    // 右のピースをチェック
+    if (col < COLS - 1 && correctCol < COLS - 1) {
+      const rightPiece = pieces.find(p => p.currentIndex === piece.currentIndex + 1);
+      if (rightPiece && rightPiece.correctIndex === piece.correctIndex + 1) {
+        piece.right = true;
+      }
+    }
+
+    // 上のピースをチェック
+    if (row > 0 && correctRow > 0) {
+      const upPiece = pieces.find(p => p.currentIndex === piece.currentIndex - COLS);
+      if (upPiece && upPiece.correctIndex === piece.correctIndex - COLS) {
+        piece.up = true;
+      }
+    }
+
+    // 下のピースをチェック
+    if (row < ROWS - 1 && correctRow < ROWS - 1) {
+      const downPiece = pieces.find(p => p.currentIndex === piece.currentIndex + COLS);
+      if (downPiece && downPiece.correctIndex === piece.correctIndex + COLS) {
+        piece.down = true;
+      }
+    }
+  }
+}
+
+// 連結されているピースを収集
+function getConnectedPieces(startPiece) {
+  const connected = [];
+  const visited = new Set();
+  const queue = [startPiece];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    
+    if (visited.has(current.id)) continue;
+    visited.add(current.id);
+    
+    // 開始ピース自身は含めない
+    if (current.id !== startPiece.id) {
+      connected.push(current);
+    }
+
+    const row = Math.floor(current.currentIndex / COLS);
+    const col = current.currentIndex % COLS;
+
+    // 左に結合している場合
+    if (current.left && col > 0) {
+      const leftPiece = pieces.find(p => p.currentIndex === current.currentIndex - 1);
+      if (leftPiece && !visited.has(leftPiece.id)) {
+        queue.push(leftPiece);
+      }
+    }
+
+    // 右に結合している場合
+    if (current.right && col < COLS - 1) {
+      const rightPiece = pieces.find(p => p.currentIndex === current.currentIndex + 1);
+      if (rightPiece && !visited.has(rightPiece.id)) {
+        queue.push(rightPiece);
+      }
+    }
+
+    // 上に結合している場合
+    if (current.up && row > 0) {
+      const upPiece = pieces.find(p => p.currentIndex === current.currentIndex - COLS);
+      if (upPiece && !visited.has(upPiece.id)) {
+        queue.push(upPiece);
+      }
+    }
+
+    // 下に結合している場合
+    if (current.down && row < ROWS - 1) {
+      const downPiece = pieces.find(p => p.currentIndex === current.currentIndex + COLS);
+      if (downPiece && !visited.has(downPiece.id)) {
+        queue.push(downPiece);
+      }
+    }
+  }
+
+  return connected;
+}
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 枠線
+  ctx.strokeStyle = "#aaa";
+  for (let r = 0; r <= ROWS; r++) {
+    ctx.beginPath();
+    ctx.moveTo(0, r * cellH);
+    ctx.lineTo(canvas.width, r * cellH);
+    ctx.stroke();
+  }
+  for (let c = 0; c <= COLS; c++) {
+    ctx.beginPath();
+    ctx.moveTo(c * cellW, 0);
+    ctx.lineTo(c * cellW, canvas.height);
+    ctx.stroke();
+  }
+
+  // アニメーション中の場合
+  if (isAnimating) {
+    const currentTime = Date.now();
+    const elapsed = currentTime - animationStartTime;
+    animationProgress = Math.min(elapsed / animationDuration, 1);
+    const easedProgress = easeInOutCubic(animationProgress);
+
+    // アニメーション中でないピースを描画
+    const animatingIds = new Set(animatingPieces.map(ap => ap.piece.id));
+    for (const p of pieces) {
+      if (animatingIds.has(p.id)) continue;
+
+      const row = Math.floor(p.currentIndex / COLS);
+      const col = p.currentIndex % COLS;
+
+      ctx.drawImage(
+        img,
+        p.sx, p.sy, p.sw, p.sh,
+        col * cellW, row * cellH,
+        cellW, cellH
+      );
+    }
+
+    // アニメーション中のピースを描画
+    for (const ap of animatingPieces) {
+      const toRow = Math.floor(ap.toIndex / COLS);
+      const toCol = ap.toIndex % COLS;
+      const toX = toCol * cellW;
+      const toY = toRow * cellH;
+
+      let fromX, fromY;
+      
+      if (ap.useCustomStart && ap.piece._customStartX !== undefined) {
+        // ドラッグ中のピースはカスタム開始位置から
+        fromX = ap.piece._customStartX;
+        fromY = ap.piece._customStartY;
+      } else {
+        // 通常のピースはグリッド位置から
+        const fromRow = Math.floor(ap.fromIndex / COLS);
+        const fromCol = ap.fromIndex % COLS;
+        fromX = fromCol * cellW;
+        fromY = fromRow * cellH;
+      }
+
+      const currentX = fromX + (toX - fromX) * easedProgress;
+      const currentY = fromY + (toY - fromY) * easedProgress;
+
+      ctx.drawImage(
+        img,
+        ap.piece.sx, ap.piece.sy, ap.piece.sw, ap.piece.sh,
+        currentX, currentY,
+        cellW, cellH
+      );
+    }
+
+    // アニメーション終了チェック
+    if (animationProgress >= 1) {
+      isAnimating = false;
+      
+      // 保存されたスワップ操作を適用
+      if (window.pendingSwaps) {
+        for (const swap of window.pendingSwaps) {
+          const piece = pieces.find(p => p.id === swap.pieceId);
+          if (piece) {
+            piece.currentIndex = swap.toIndex;
+          }
+        }
+        window.pendingSwaps = null;
+      }
+      
+      // カスタム座標をクリーンアップ
+      for (const piece of pieces) {
+        delete piece._customStartX;
+        delete piece._customStartY;
+      }
+      
+      animatingPieces = [];
+      updateConnections();
+      checkComplete();
+    }
+  } else {
+    // 通常の描画（ドラッグ中を含む）
+    let connectedPieces = [];
+    if (draggingPiece) {
+      connectedPieces = getConnectedPieces(draggingPiece);
+    }
+    allDraggingPieces = [];
+    if (draggingPiece) {
+      allDraggingPieces = [draggingPiece, ...connectedPieces];
+    }
+
+    // 全ピース描画
+    for (const p of pieces) {
+      const row = Math.floor(p.currentIndex / COLS);
+      const col = p.currentIndex % COLS;
+      if((allDraggingPieces.find(p_ => ( p_.sx === p.sx && p_.sy === p.sy )))){
+        ctx.globalAlpha = 0.0;
+      }
+      ctx.drawImage(
+        img,
+        p.sx, p.sy, p.sw, p.sh,
+        col * cellW, row * cellH,
+        cellW, cellH
+      );
+      ctx.globalAlpha = 1.0;
+    }
+
+    if(draggingPiece){
+      // ドラッグ中のピースの元の位置
+      const dragRow = Math.floor(dragIndex / COLS);
+      const dragCol = dragIndex % COLS;
+      const dragBaseX = dragCol * cellW;
+      const dragBaseY = dragRow * cellH;
+
+      // マウス位置からのオフセット
+      const offsetX = mousePos.x - dragBaseX - dragOffset.x;
+      const offsetY = mousePos.y - dragBaseY - dragOffset.y;
+
+      ctx.globalAlpha = 1.0;
+
+      for (const p of allDraggingPieces) {
+        const row = Math.floor(p.currentIndex / COLS);
+        const col = p.currentIndex % COLS;
+
+        // 元の位置にオフセットを適用
+        const drawX = col * cellW + offsetX;
+        const drawY = row * cellH + offsetY;
+        ctx.drawImage(
+          img,
+          p.sx, p.sy, p.sw, p.sh,
+          drawX, drawY,
+          cellW, cellH
+        );
+      }
+      ctx.globalAlpha = 1.0;
+    }
+  }
+
+  requestAnimationFrame(draw);
+}
+
+function getCellIndex(x, y) {
+  const col = Math.floor(x / cellW);
+  const row = Math.floor(y / cellH);
+  if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return null;
+  return row * COLS + col;
+}
+
+// Pointer Events
+canvas.addEventListener("pointerdown", e => {
+  if (isAnimating) return; // アニメーション中は操作不可
+
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  const index = getCellIndex(x, y);
+  if (index == null) return;
+
+  draggingPiece = pieces.find(p => p.currentIndex === index);
+  dragIndex = index;
+
+  // ドラッグ開始位置のセル内でのオフセットを記録
+  const col = index % COLS;
+  const row = Math.floor(index / COLS);
+  dragOffset.x = x - col * cellW;
+  dragOffset.y = y - row * cellH;
+
+  mousePos.x = x;
+  mousePos.y = y;
+});
+
+canvas.addEventListener("pointermove", e => {
+  if (!draggingPiece || isAnimating) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  // マウス位置を更新
+  mousePos.x = x;
+  mousePos.y = y;
+
+  const targetIndex = getCellIndex(x, y);
+  if (targetIndex == null) return;
+
+  // ドロップ予定位置を更新するだけ
+  dropIndex = targetIndex;
+});
+
+canvas.addEventListener("pointerup", release);
+canvas.addEventListener("pointercancel", release);
+
+function release() {
+  if (!draggingPiece || isAnimating) return;
+
+  // ドロップ位置が有効で、元の位置と異なる場合のみスワップ処理
+  if (dropIndex != null && dropIndex !== dragIndex) {
+    const targetPiece = pieces.find(p => p.currentIndex === dropIndex);
+    
+    if (targetPiece) {
+      // 移動量を計算
+      const moveAmount = dropIndex - dragIndex;
+      
+      // dropIndexとdragIndexのrow, colを計算して移動量を求める
+      const dragRow = Math.floor(dragIndex / COLS);
+      const dragCol = dragIndex % COLS;
+      const dropRow = Math.floor(dropIndex / COLS);
+      const dropCol = dropIndex % COLS;
+      const moveRow = dropRow - dragRow;
+      const moveCol = dropCol - dragCol;
+
+      // 連結されているピースを取得（選択中のピースを含む）
+      const connectedPieces = getConnectedPieces(draggingPiece);
+      const allMovingPieces = [draggingPiece, ...connectedPieces];
+
+      // ②移動後にcanvasからはみ出さないかチェック
+      let isValidMove = true;
+      
+      for (const movingPiece of allMovingPieces) {
+        const oldRow = Math.floor(movingPiece.currentIndex / COLS);
+        const oldCol = movingPiece.currentIndex % COLS;
+        
+        const newRow = oldRow + moveRow;
+        const newCol = oldCol + moveCol;
+        
+        // 範囲外チェック
+        if (newRow < 0 || newRow >= ROWS || newCol < 0 || newCol >= COLS) {
+          isValidMove = false;
+          break;
+        }
+      }
+      
+      if (!isValidMove) {
+        // 無効な移動の場合は何もしない
+        draggingPiece = null;
+        dragIndex = null;
+        dropIndex = null;
+        return;
+      }
+
+      // 移動方向に応じてソート
+      if (moveRow < 0) {
+        allMovingPieces.sort((a, b) => a.currentIndex - b.currentIndex);
+      } else if (moveRow > 0) {
+        allMovingPieces.sort((a, b) => b.currentIndex - a.currentIndex);
+      } else if (moveCol < 0) {
+        allMovingPieces.sort((a, b) => a.currentIndex - b.currentIndex);
+      } else if (moveCol > 0) {
+        allMovingPieces.sort((a, b) => b.currentIndex - a.currentIndex);
+      }
+
+      // ①現在のpiecesからid, currentIndexのみのディープコピーを作成
+      const newPieces = pieces.map(p => ({ id: p.id, currentIndex: p.currentIndex }));
+
+      // ②newPiecesで適切な順番でスワップを実行して先に完成図を作る
+      for (const movingPiece of allMovingPieces) {
+        const newIndex = movingPiece.currentIndex + moveAmount;
+        const oldIndex = movingPiece.currentIndex;
+        
+        // 移動先にいるピースを取得（移動するピース群に含まれないもの）
+        const pieceAtNewIndex = newPieces.find(p => 
+          p.currentIndex === newIndex && 
+          !allMovingPieces.some(mp => mp.id === p.id)
+        );
+        
+        // newPieces上で更新
+        const newPieceToUpdate = newPieces.find(p => p.id === movingPiece.id);
+        
+        if (pieceAtNewIndex) {
+          // スワップ
+          newPieceToUpdate.currentIndex = newIndex;
+          pieceAtNewIndex.currentIndex = oldIndex;
+        } else {
+          // 移動先が空いている場合（移動するピース群内）
+          newPieceToUpdate.currentIndex = newIndex;
+        }
+      }
+
+      // ③アニメーション用のデータを準備
+      animatingPieces = [];
+      const swapOperations = [];
+      
+      // ドラッグ中のピースの現在の描画位置を計算
+      const dragBaseX = dragCol * cellW;
+      const dragBaseY = dragRow * cellH;
+      const dragOffsetX = mousePos.x - dragBaseX - dragOffset.x;
+      const dragOffsetY = mousePos.y - dragBaseY - dragOffset.y;
+
+      // 変化があったピースのみをアニメーション対象とする
+      for (const piece of pieces) {
+        const oldIndex = piece.currentIndex;
+        const newPiece = newPieces.find(p => p.id === piece.id);
+        const newIndex = newPiece.currentIndex;
+        
+        if (oldIndex !== newIndex) {
+          // ドラッグ中のピースとその連結ピースはドラッグ位置から開始
+          const isDraggingGroup = allDraggingPieces.some(dp => dp.id === piece.id);
+          
+          if (isDraggingGroup) {
+            const row = Math.floor(oldIndex / COLS);
+            const col = oldIndex % COLS;
+            const normalX = col * cellW;
+            const normalY = row * cellH;
+            const currentX = normalX + dragOffsetX;
+            const currentY = normalY + dragOffsetY;
+            
+            piece._customStartX = currentX;
+            piece._customStartY = currentY;
+          }
+          
+          animatingPieces.push({
+            piece: piece,
+            fromIndex: oldIndex,
+            toIndex: newIndex,
+            useCustomStart: isDraggingGroup
+          });
+          
+          swapOperations.push({
+            pieceId: piece.id,
+            toIndex: newIndex
+          });
+        }
+      }
+
+      // アニメーション開始
+      isAnimating = true;
+      animationProgress = 0;
+      animationStartTime = Date.now();
+      
+      // スワップ操作を保存（アニメーション終了時に適用）
+      window.pendingSwaps = swapOperations;
+    }
+  }
+
+  draggingPiece = null;
+  dragIndex = null;
+  dropIndex = null;
+}
+
+function checkComplete() {
+  if (pieces.every(p => p.currentIndex === p.correctIndex)) {
+    setTimeout(() => alert("完成！"), 100);
+    document.getElementById("share").style.display = "block";
+  
+    document.getElementById("share-native").onclick = async () => {
+      const blob = await fetch(json.previewUrl).then(r => r.blob());
+
+      const file = new File(
+        [blob],
+        'puzzle.png',
+        { type: 'image/png' }
+      );
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: 'パズる絵を共有',
+          text: 'パズる絵でジグソーパズルを共有しました\n' + json.shareUrl,
+          files: [file],
+        });
+      }
+    };
+  }
+}
+</script>
+
+
+</body>
+</html>
+

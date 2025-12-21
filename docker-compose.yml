@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: pazurue-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: pazurue
+      POSTGRES_PASSWORD: pazurue
+      POSTGRES_DB: pazurue
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
