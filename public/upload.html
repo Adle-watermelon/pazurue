@@ -92,8 +92,8 @@ document.querySelectorAll('input[type="number"]').forEach(input => {
 });
 
   // サイズ上限を設定（ビューポートの70%）
-  const maxWidth = window.innerWidth * 0.7;
-  const maxHeight = window.innerHeight * 0.5;
+  const maxWidth = document.clientWidth * 0.7;
+  const maxHeight = document.clientHeight * 0.5;
 
   let drawWidth = img.width;
   let drawHeight = img.height;
