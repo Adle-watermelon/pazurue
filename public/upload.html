@@ -17,11 +17,25 @@
 <div class="number-inputs">
   <div class="input-item">
     <label for="rows">縦:</label>
-    <input type="number" id="rows" value="5" min="1" max="20" />
+    <input
+      type="number"
+      id="rows"
+      value="5"
+      min="1"
+      max="20"
+      step="1"
+    />
   </div>
   <div class="input-item">
     <label for="cols">横:</label>
-    <input type="number" id="cols" value="5" min="1" max="20" />
+    <input
+      type="number"
+      id="cols"
+      value="5"
+      min="1"
+      max="20"
+      step="1"
+    />
   </div>
 </div>
 
@@ -63,6 +77,19 @@ function drawPreview() {
   if (!img) return;
   const rows = +document.getElementById("rows").value;
   const cols = +document.getElementById("cols").value;
+function clampNumberInput(input) {
+  let value = parseInt(input.value, 10);
+
+  if (isNaN(value)) value = 1;
+  if (value < 1) value = 1;
+  if (value > 20) value = 20;
+
+  input.value = value;
+}
+
+document.querySelectorAll('input[type="number"]').forEach(input => {
+  input.addEventListener('change', () => clampNumberInput(input));
+});
 
   // サイズ上限を設定（ビューポートの70%）
   const maxWidth = window.innerWidth * 0.7;
@@ -163,7 +190,7 @@ document.getElementById("submit").onclick = async () => {
     if (navigator.canShare) {
       await navigator.share({
         title: 'パズる絵を投稿',
-        text: 'パズる絵でジグソーパズルを投稿しました！\nプレイしてね！\n#パズる絵' + json.shareUrl,
+        text: 'パズる絵でジグソーパズルを投稿しました！\nプレイしてね！\n#パズる絵\n' + json.shareUrl,
       });
     }
   };
